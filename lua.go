@@ -48,12 +48,16 @@ done:
 
 func WithEnv(env vela.Environment) {
 	xEnv = env
-	nv := lua.NewUserKV()
-	nv.Set("ipv4", lua.NewFunction(newLuaIpv4))
-	nv.Set("ipv6", lua.NewFunction(newLuaIPv6))
-	nv.Set("ip", lua.NewFunction(newLuaIP))
-	nv.Set("ping", lua.NewFunction(newLuaPing))
-	nv.Set("cat", lua.NewFunction(newLuaNetCat))
-	nv.Set("open", lua.NewFunction(newLuaNetOpen))
-	xEnv.Global("net", nv)
+	kv := lua.NewUserKV()
+	kv.Set("ipv4", lua.NewFunction(newLuaIpv4))
+	kv.Set("ipv6", lua.NewFunction(newLuaIPv6))
+	kv.Set("ip", lua.NewFunction(newLuaIP))
+	kv.Set("ping", lua.NewFunction(newLuaPing))
+	kv.Set("cat", lua.NewFunction(newLuaNetCat))
+	kv.Set("open", lua.NewFunction(newLuaNetOpen))
+	kv.Set("pipe", lua.NewFunction(newNetPipeL))
+
+	xEnv.Global("net",
+		lua.NewExport("lua.net.export",
+			lua.WithTable(kv)))
 }

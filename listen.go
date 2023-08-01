@@ -17,16 +17,27 @@ import (
 
 var listenTypeOf = reflect.TypeOf((*listen)(nil)).String()
 
+/*
+	local p = net.open("tcp://127.0.0.1/9090")
+
+	local p = net.pipe("tcp://127.0.0.1:9092" , "tcp://127.0.0.1:9092").start()
+
+	local x = net.pipe("tcp://127.0.0.1/9092" , vela.proxy("127.0.0.1:8080"))
+
+*/
+
 type listen struct {
 	lua.SuperVelaData
-	name   string
-	url    auxlib.URL
-	ne     *kind.Listener
-	co     *lua.LState
-	banner string
-	hook   *pipe.Px
-	vsh    *vswitch.Switch
-	err    error
+	name      string
+	url       auxlib.URL
+	ne        *kind.Listener
+	co        *lua.LState
+	banner    string
+	hook      *pipe.Chains
+	onConnect *pipe.Chains
+	onClose   *pipe.Chains
+	vsh       *vswitch.Switch
+	err       error
 }
 
 func newLuaListen(L *lua.LState) *listen {
@@ -85,7 +96,35 @@ func (ln *listen) Banner(conn net.Conn) {
 	conn.Write(lua.S2B(ln.banner))
 }
 
+func (ln *listen) OnConnect(ctx context.Context, conn net.Conn) {
+	if ln.onConnect == nil {
+		return
+	}
+
+	co := xEnv.Clone(ln.co)
+	defer xEnv.Free(co)
+
+	ln.onConnect.Do(kind.NewConn(conn), co, func(err error) {
+		xEnv.Errorf("listen connection pipe call fail %v", err)
+	})
+}
+
+func (ln *listen) OnClose(ctx context.Context, conn net.Conn) {
+	if ln.onClose == nil {
+		return
+	}
+
+	co := xEnv.Clone(ln.co)
+	defer xEnv.Free(co)
+
+	ln.onClose.Do(kind.NewConn(conn), co, func(err error) {
+		xEnv.Errorf("listen connection pipe call fail %v", err)
+	})
+}
+
 func (ln *listen) Accept(ctx context.Context, conn net.Conn) error {
+
+	ln.OnConnect(ctx, conn)
 
 	rev := &RevBuffer{
 		rev: buffer.Get(),
@@ -99,6 +138,7 @@ func (ln *listen) Accept(ctx context.Context, conn net.Conn) error {
 	ln.Banner(conn)
 	defer func() {
 		_ = conn.Close()
+		ln.OnClose(ctx, conn)
 	}()
 
 	for {
@@ -126,8 +166,40 @@ func (ln *listen) Accept(ctx context.Context, conn net.Conn) error {
 }
 
 func (ln *listen) hookL(L *lua.LState) int {
-	ln.hook.CheckMany(L)
+	sub := pipe.NewByLua(L)
+	ln.hook.Merge(sub)
 	return 0
+}
+
+func (ln *listen) ToLValue() lua.LValue {
+	return lua.NewAnyData(ln, lua.Reflect(lua.OFF))
+}
+
+func (ln *listen) onConnectL(L *lua.LState) int {
+	sub := pipe.NewByLua(L)
+
+	if ln.onConnect == nil {
+		ln.onConnect = sub
+	} else {
+		ln.onConnect.Merge(sub)
+	}
+
+	L.Push(ln.ToLValue())
+	return 1
+
+}
+
+func (ln *listen) onCloseL(L *lua.LState) int {
+	sub := pipe.NewByLua(L)
+
+	if ln.onClose == nil {
+		ln.onClose = sub
+	} else {
+		ln.onClose.Merge(sub)
+	}
+
+	L.Push(ln.ToLValue())
+	return 1
 }
 
 func (ln *listen) Index(L *lua.LState, key string) lua.LValue {
@@ -136,6 +208,12 @@ func (ln *listen) Index(L *lua.LState, key string) lua.LValue {
 		return lua.NewFunction(ln.hookL)
 	case "case":
 		return ln.vsh.Index(L, "case")
+	case "default":
+		return ln.vsh.Index(L, "default")
+	case "on_connect":
+		return lua.NewFunction(ln.onConnectL)
+	case "on_close":
+		return lua.NewFunction(ln.onCloseL)
 	}
 	return lua.LNil
 }

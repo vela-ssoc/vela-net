@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/vela-ssoc/vela-kit/audit"
 	auxlib2 "github.com/vela-ssoc/vela-kit/auxlib"
-	"github.com/vela-ssoc/vela-kit/execpt"
+	"github.com/vela-ssoc/vela-kit/exception"
 	"github.com/vela-ssoc/vela-kit/lua"
 	"net"
 	"strconv"
@@ -109,7 +109,7 @@ func (nc *ncat) request(data string) {
 		return
 	}
 
-	me := execpt.New()
+	me := exception.New()
 	for _, p := range nc.url.Ports() {
 		host := hostname + ":" + strconv.Itoa(p)
 		r := nc.dail(d, scheme, host, p, data, buf)

@@ -11,7 +11,7 @@ import (
 type RevBuffer struct {
 	buf  []byte
 	rev  *buffer.Byte
-	hdp  *pipe.Px
+	hdp  *pipe.Chains
 	vsh  *vswitch.Switch
 	cnn  kind.Conn
 	co   *lua.LState
@@ -56,7 +56,7 @@ func (r *RevBuffer) call(err error) {
 
 	conn := &connection{
 		conn: r.cnn,
-		body: r.buf,
+		body: r.rev.Bytes(),
 		err:  err,
 	}
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/vela-ssoc/vela-kit/kind"
 	"github.com/vela-ssoc/vela-kit/lua"
 	"net"
 	"time"
@@ -27,7 +28,7 @@ type ReplyICMP struct {
 	Err  error
 }
 
-func (r ReplyICMP) String() string                         { return fmt.Sprintf("%p", &r) }
+func (r ReplyICMP) String() string                         { return lua.B2S(r.Byte()) }
 func (r ReplyICMP) Type() lua.LValueType                   { return lua.LTObject }
 func (r ReplyICMP) AssertFloat64() (float64, bool)         { return 0, false }
 func (r ReplyICMP) AssertString() (string, bool)           { return "", false }
@@ -40,6 +41,23 @@ func (r ReplyICMP) ok() bool {
 	}
 
 	return true
+}
+
+func (r ReplyICMP) Byte() []byte {
+	if r.Err != nil {
+		return lua.S2B(r.Err.Error())
+	}
+
+	enc := kind.NewJsonEncoder()
+	enc.Tab("")
+	enc.KV("seq", r.Packet.Seq)
+	enc.KV("addr", r.Addr.String())
+	enc.KV("cnt", r.Cnt)
+	enc.KV("time", r.Time)
+	enc.KV("code", r.Packet.Code)
+	enc.End("}")
+
+	return enc.Bytes()
 }
 
 func (r ReplyICMP) Index(L *lua.LState, key string) lua.LValue {

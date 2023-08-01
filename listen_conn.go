@@ -21,7 +21,7 @@ func (cn *connection) AssertString() (string, bool)           { return "", false
 func (cn *connection) AssertFunction() (*lua.LFunction, bool) { return nil, false }
 func (cn *connection) Peek() lua.LValue                       { return cn }
 
-func (cn *connection) riskL(L *lua.LState) int {
+func (cn *connection) riskL(L *lua.LState) *risk.Event {
 	ev := risk.NewEv()
 	ev.Class = risk.CheckClass(L, 1)
 	src, port := cn.conn.Source()
@@ -37,7 +37,8 @@ func (cn *connection) riskL(L *lua.LState) int {
 	ev.Time = time.Now()
 	ev.Subject = "net.open"
 	ev.Alert = true
-	return 0
+
+	return ev
 }
 
 func (cn *connection) Index(L *lua.LState, key string) lua.LValue {
@@ -47,14 +48,12 @@ func (cn *connection) Index(L *lua.LState, key string) lua.LValue {
 			return lua.LNil
 		}
 		return lua.S2L(cn.err.Error())
-
 	case "raw":
-		return lua.B2L(cn.body)
+		return lua.S2L(string(cn.body))
 	case "risk":
-		return lua.NewFunction(cn.riskL)
+		return cn.riskL(L)
 
 	default:
 		return cn.conn.Index(L, key)
 	}
-
 }
